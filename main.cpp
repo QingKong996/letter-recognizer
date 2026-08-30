@@ -11,12 +11,12 @@
 
 #define HEIGHT 28
 #define WIDTH 28
-#define SIMPLE_SIZE 124800 
+#define SAMPLE_SIZE 124800 
 #define TEST_ROUND 20800 
 #define CLASSES 26
 
 template<typename T>
-using Layer = std::array<std::array<T, WIDTH>, HEIGHT>;
+using Layer = std::array<std::array<T, HEIGHT>, WIDTH>;
 template<typename T>
 using Model = std::array<Layer<T>, CLASSES>;
 
@@ -93,7 +93,7 @@ void load_image_data(Data &data, std::filesystem::path path, int dataCount){
 
     data.resize(dataCount);
     file.read(reinterpret_cast<char*>(data.data()), data.size() * WIDTH * HEIGHT);
-    for(Layer layer : data){
+    for(Layer<uint8_t> &layer : data){
         for(int x = 0; x < WIDTH; ++x){
             for(int y = x + 1; y < HEIGHT; ++y){
                 std::swap(layer[x][y], layer[y][x]);
@@ -109,7 +109,7 @@ void load_image_data(Data &data, std::filesystem::path path, int dataCount){
     std::cout << "Time taken: " << duration.count() << " seconds\n";
 }
 
-void load_label_data(std::vector<int8_t> &data, std::filesystem::path path, int dataCount){
+void load_label_data(std::vector<uint8_t> &data, std::filesystem::path path, int dataCount){
     std::ifstream file(path, std::ios::binary);
 
     assert(file && "Failed to open training data file");
@@ -146,13 +146,13 @@ void apply_patch(Layer<float> &weight, Layer<uint8_t> const &data, bool negative
     }
 }
 
-void train(Data const &trainingData, std::vector<int8_t> const &trainingLable, Model<float> &model){
-    assert(trainingData.size() >= SIMPLE_SIZE && "Training data less than SIMPLE_SIZE");
-    assert(trainingLable.size() >= SIMPLE_SIZE && "Training lable less than SIMPLE_SIZE");
+void train(Data const &trainingData, std::vector<uint8_t> const &trainingLable, Model<float> &model){
+    assert(trainingData.size() >= SAMPLE_SIZE && "Training data less than SAMPLE_SIZE");
+    assert(trainingLable.size() >= SAMPLE_SIZE && "Training lable less than SAMPLE_SIZE");
 
     std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();
 
-    for(int trainingRound = 0; trainingRound < SIMPLE_SIZE; ++trainingRound) {
+    for(int trainingRound = 0; trainingRound < SAMPLE_SIZE; ++trainingRound) {
         std::array<float, CLASSES> res = forward(trainingData[trainingRound], model);
         auto it = std::max_element(res.begin(), res.end());
         std::size_t index = std::distance(res.begin(), it);
@@ -167,12 +167,12 @@ void train(Data const &trainingData, std::vector<int8_t> const &trainingLable, M
     std::chrono::time_point<std::chrono::high_resolution_clock> end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
 
-    std::cout << "Success train " << SIMPLE_SIZE << " rounds\n";
+    std::cout << "Success train " << SAMPLE_SIZE << " rounds\n";
     std::cout << "Time taken: " << duration.count() << " seconds\n";
 
 }
 
-void test(Data const &testingData, std::vector<int8_t> const &testingLable, Model<float> const &model, int testRound){
+void test(Data const &testingData, std::vector<uint8_t> const &testingLable, Model<float> const &model, int testRound){
     assert(testingData.size() >= testRound && "Testing data less than testRound");
     assert(testingLable.size() >= testRound && "Testing lable less than testRound");
 
@@ -207,13 +207,13 @@ int main() {
     // }
     Model<float> weight = {};
     Data trainingData;
-    std::vector<int8_t> trainingLable;
+    std::vector<uint8_t> trainingLable;
 
-    load_image_data(trainingData, "./dataset/emnist-letters-train-images-idx3-ubyte/emnist-letters-train-images-idx3-ubyte", SIMPLE_SIZE);
-    load_label_data(trainingLable, "./dataset/emnist-letters-train-labels-idx1-ubyte/emnist-letters-train-labels-idx1-ubyte", SIMPLE_SIZE);
+    load_image_data(trainingData, "./dataset/emnist-letters-train-images-idx3-ubyte/emnist-letters-train-images-idx3-ubyte", SAMPLE_SIZE);
+    load_label_data(trainingLable, "./dataset/emnist-letters-train-labels-idx1-ubyte/emnist-letters-train-labels-idx1-ubyte", SAMPLE_SIZE);
 
     Data testingData;
-    std::vector<int8_t> testingLable;
+    std::vector<uint8_t> testingLable;
 
     load_image_data(testingData, "./dataset/emnist-letters-test-images-idx3-ubyte/emnist-letters-test-images-idx3-ubyte", TEST_ROUND);
     load_label_data(testingLable, "./dataset/emnist-letters-test-labels-idx1-ubyte/emnist-letters-test-labels-idx1-ubyte", TEST_ROUND);
@@ -223,7 +223,7 @@ int main() {
         train(trainingData, trainingLable, weight);
         // print_model(weight);
         std::cout << "--------------------" << "TRAINING_DATASET" << "--------------------" << '\n';
-        test(trainingData, trainingLable, weight, SIMPLE_SIZE);
+        test(trainingData, trainingLable, weight, SAMPLE_SIZE);
         std::cout << "--------------------" << "TESTING_DATASET" << "--------------------" << '\n';
         test(testingData, testingLable, weight, TEST_ROUND);
     }
