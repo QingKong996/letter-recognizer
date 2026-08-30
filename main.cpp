@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <limits>
 
-
 #define HEIGHT 28
 #define WIDTH 28
 #define SAMPLE_SIZE 124800 
@@ -157,7 +156,8 @@ void apply_patch(Layer<float> &weight, float &bias, Layer<uint8_t> const &data, 
     }
 }
 
-void train(Data const &trainingData, std::vector<uint8_t> const &trainingLable, Model<float> &model){
+Model<float> train(Data const &trainingData, std::vector<uint8_t> const &trainingLable, Model<float> &model){
+    Model<float> averageModel = {};
     assert(trainingData.size() >= SAMPLE_SIZE && "Training data less than SAMPLE_SIZE");
     assert(trainingLable.size() >= SAMPLE_SIZE && "Training lable less than SAMPLE_SIZE");
 
@@ -173,14 +173,24 @@ void train(Data const &trainingData, std::vector<uint8_t> const &trainingLable, 
             // std::cout << "expected: " << static_cast<char>(trainingLable[trainingRound]+ 'a' - 1) << " bug get: " << static_cast<char>(index + 'a') << '\n';
             apply_patch(model.weight[index], model.bias[index], trainingData[trainingRound] ,true);
             apply_patch(model.weight[trainingLable[trainingRound] - 1], model.bias[trainingLable[trainingRound] - 1], trainingData[trainingRound] ,false);
+
         }
+    
+         for(int cls = 0; cls < CLASSES; ++cls){
+            for(int x = 0; x < WIDTH; ++x){
+                for(int y = 0; y < HEIGHT; ++y){
+                    averageModel.weight[cls][x][y] += (model.weight[cls][x][y] - averageModel.weight[cls][x][y]) / (trainingRound + 1);
+                }
+            }
+         }
     }
     std::chrono::time_point<std::chrono::high_resolution_clock> end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
 
     std::cout << "Success train " << SAMPLE_SIZE << " rounds\n";
     std::cout << "Time taken: " << duration.count() << " seconds\n";
-
+    
+    return averageModel;
 }
 
 void test(Data const &testingData, std::vector<uint8_t> const &testingLable, Model<float> const &model, int testRound){
@@ -211,12 +221,8 @@ void test(Data const &testingData, std::vector<uint8_t> const &testingLable, Mod
 
 int main() {
 
-    // Layer input = {};
-    // auto ans = forward(input, weight);
-    // for(auto t : ans){
-    //     std::cout << t << '\n';
-    // }
     Model<float> weight = {};
+    Model<float> averageWeight = {};
     Data trainingData;
     std::vector<uint8_t> trainingLable;
 
@@ -231,12 +237,17 @@ int main() {
 
     // for(int epoch = 0; epoch < 10; ++epoch){
         // std::cout << "--------------------" << "EPOCH:" << epoch << "--------------------" << '\n';
-        train(trainingData, trainingLable, weight);
+
+        averageWeight = train(trainingData, trainingLable, weight);
         // print_model(weight);
-        std::cout << "--------------------" << "TRAINING_DATASET" << "--------------------" << '\n';
+        std::cout << "--------------------" << "TRAINING_DATASET NORMAL_MODEL" << "--------------------" << '\n';
         test(trainingData, trainingLable, weight, SAMPLE_SIZE);
-        std::cout << "--------------------" << "TESTING_DATASET" << "--------------------" << '\n';
+        std::cout << "--------------------" << "TESTING_DATASET NORMAL_MODEL" << "--------------------" << '\n';
         test(testingData, testingLable, weight, TEST_ROUND);
+        std::cout << "--------------------" << "TRAINING_DATASET AVERAGE_MODEL" << "--------------------" << '\n';
+        test(trainingData, trainingLable, averageWeight, SAMPLE_SIZE);
+        std::cout << "--------------------" << "TESTING_DATASET AVERAGE_MODEL" << "--------------------" << '\n';
+        test(testingData, testingLable, averageWeight, TEST_ROUND);
     // }
 
     
