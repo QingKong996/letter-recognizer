@@ -7,6 +7,8 @@
 #include <chrono>
 #include <vector>
 #include <bit>
+#include <algorithm>
+#include <limits>
 
 
 #define HEIGHT 28
@@ -18,16 +20,21 @@
 template<typename T>
 using Layer = std::array<std::array<T, HEIGHT>, WIDTH>;
 template<typename T>
-using Model = std::array<Layer<T>, CLASSES>;
+struct Model{
+    std::array<Layer<T>, CLASSES> weight{};
+    std::array<T, CLASSES> bias{};
+};
 
 
-std::array<float, CLASSES> forward(Layer<uint8_t> const &input, Model<float> const &weight){
+
+std::array<float, CLASSES> forward(Layer<uint8_t> const &input, Model<float> const &model){
     std::array<float, CLASSES> res = {};
 
     for (int cls = 0; cls < CLASSES; ++cls) {
+        res[cls] += model.bias[cls];
         for(int x = 0; x < WIDTH; ++x){
             for(int y = 0; y < HEIGHT; ++y){
-                res[cls] += input[x][y] * weight[cls][x][y];
+                res[cls] += input[x][y] * (model.weight[cls][x][y] / 255.0f);
             }
         }
     }
@@ -55,14 +62,14 @@ void print_model(Model<float> const &model){
 
         for(int x = 0; x < WIDTH; ++x){
             for(int y = 0;y < HEIGHT; ++y){
-                if(model[cls][x][y] > max) max = model[cls][x][y];
-                if(model[cls][x][y] < min) min = model[cls][x][y];
+                if(model.weight[cls][x][y] > max) max = model.weight[cls][x][y];
+                if(model.weight[cls][x][y] < min) min = model.weight[cls][x][y];
             }
         }
 
         for(int x = 0; x < WIDTH; ++x){
             for(int y = 0;y < HEIGHT; ++y){
-                float t = (model[cls][x][y] - min) / (max - min);
+                float t = (model.weight[cls][x][y] - min) / (max - min);
                 int value = static_cast<int>(t * 255.0f);
                 
                 std::cout << "\033[48;2;" << value << ";" << value << ";" << value << "m  ";
@@ -136,12 +143,16 @@ void load_label_data(std::vector<uint8_t> &data, std::filesystem::path path, int
     std::cout << "Time taken: " << duration.count() << " seconds\n";
 }
 
-void apply_patch(Layer<float> &weight, Layer<uint8_t> const &data, bool negative){
+void apply_patch(Layer<float> &weight, float &bias, Layer<uint8_t> const &data, bool negative){
+    negative ? bias -= 1: bias += 1;
+
     for(int x = 0; x < WIDTH; ++x){
         for(int y = 0; y < HEIGHT; ++y){
-            float patch = data[x][y] / 255.0;
+            float patch = data[x][y] / 255.0f;
             if(negative) patch *= -1;
             weight[x][y] += patch;
+            
+
         }
     }
 }
@@ -160,8 +171,8 @@ void train(Data const &trainingData, std::vector<uint8_t> const &trainingLable, 
             // std::cout << "expected: " << static_cast<char>(trainingLable[trainingRound]+ 'a' - 1) << " get: " << static_cast<char>(index + 'a') << '\n';
         }else{
             // std::cout << "expected: " << static_cast<char>(trainingLable[trainingRound]+ 'a' - 1) << " bug get: " << static_cast<char>(index + 'a') << '\n';
-            apply_patch(model[index], trainingData[trainingRound] ,true);
-            apply_patch(model[trainingLable[trainingRound] - 1], trainingData[trainingRound] ,false);
+            apply_patch(model.weight[index], model.bias[index], trainingData[trainingRound] ,true);
+            apply_patch(model.weight[trainingLable[trainingRound] - 1], model.bias[trainingLable[trainingRound] - 1], trainingData[trainingRound] ,false);
         }
     }
     std::chrono::time_point<std::chrono::high_resolution_clock> end = std::chrono::high_resolution_clock::now();
@@ -218,16 +229,16 @@ int main() {
     load_image_data(testingData, "./dataset/emnist-letters-test-images-idx3-ubyte/emnist-letters-test-images-idx3-ubyte", TEST_ROUND);
     load_label_data(testingLable, "./dataset/emnist-letters-test-labels-idx1-ubyte/emnist-letters-test-labels-idx1-ubyte", TEST_ROUND);
 
-    for(int epoch = 0; epoch < 10; ++epoch){
-        std::cout << "--------------------" << "EPOCH:" << epoch << "--------------------" << '\n';
+    // for(int epoch = 0; epoch < 10; ++epoch){
+        // std::cout << "--------------------" << "EPOCH:" << epoch << "--------------------" << '\n';
         train(trainingData, trainingLable, weight);
         // print_model(weight);
         std::cout << "--------------------" << "TRAINING_DATASET" << "--------------------" << '\n';
         test(trainingData, trainingLable, weight, SAMPLE_SIZE);
         std::cout << "--------------------" << "TESTING_DATASET" << "--------------------" << '\n';
         test(testingData, testingLable, weight, TEST_ROUND);
-    }
+    // }
 
-
+    
 
 }
