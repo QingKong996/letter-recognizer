@@ -10,71 +10,117 @@
 #include <algorithm>
 #include <limits>
 
-#define HEIGHT 28
-#define WIDTH 28
 #define SAMPLE_SIZE 124800 
-#define TEST_ROUND 20800 
-#define CLASSES 26
+#define TEST_ROUND  20800 
+#define CLASSES     26
+
+constexpr size_t IMAGE_HEIGHT = 28;
+constexpr size_t IMAGE_WIDTH  = 28;
+
+// template<typename T, size_t H, size_t W>
+// using Matrix = std::array<std::array<T, H>, W>;
+
+template<typename T, size_t Rows, size_t Cols>
+struct Matrix {
+    std::array<T, Rows * Cols> data = {};
+
+    constexpr static size_t rows = Rows;
+    constexpr static size_t cols = Cols;
+
+    constexpr T& operator()(size_t row, size_t col){
+        return data[row * Cols + col];
+    }
+    constexpr const T& operator()(size_t row, size_t col) const {
+        return data[row * Cols + col];
+    }
+    
+    constexpr Matrix operator*(Matrix matrix) const {
+        assert(matrix.rows == cols && "Left matrix cols must equal right matrix rows");
+
+
+    }
+
+};
+
+
+using Data = std::vector<Matrix<uint8_t, 28, 28>>;
+
+template<typename T, size_t Classes, size_t Height, size_t Width>
+struct Linear {
+    std::array<Matrix<T, Height, Width>, Classes> weight;
+    std::array<T, Classes> bias;
+
+
+    template<size_t Input_H, size_t Input_W, size_t Output_H, size_t Output_W>
+    std::array<float, CLASSES> forward(Matrix<uint8_t, Input_H, Input_W> const &input){
+        std::array<float, CLASSES> res = {};
+
+        assert(false && "TODO: implement new forward");
+
+        for (int cls = 0; cls < CLASSES; ++cls) {
+            res[cls] += bias[cls];
+            for(int x = 0; x < H; ++x){
+                for(int y = 0; y < W; ++y){
+                    res[cls] += input[x][y] * (weight[cls][x][y] / 255.0f);
+                }
+            }
+        }
+        return res;
+    }
+
+    template<size_t H, size_t W>
+    void print(){
+        for(int cls = 0; cls < CLASSES; ++cls){
+            float max = std::numeric_limits<float>::lowest();
+            float min = std::numeric_limits<float>::max();
+
+            for(int x = 0; x < W; ++x){
+                for(int y = 0;y < H; ++y){
+                    if(weight[cls][x][y] > max) max = weight[cls][x][y];
+                    if(weight[cls][x][y] < min) min = weight[cls][x][y];
+                }
+            }
+
+            for(int x = 0; x < W; ++x){
+                for(int y = 0;y < H; ++y){
+                    float t = (weight[cls][x][y] - min) / (max - min);
+                    int value = static_cast<int>(t * 255.0f);
+                    
+                    std::cout << "\033[48;2;" << value << ";" << value << ";" << value << "m  ";
+                }
+                std::cout << "\033[0m\n";
+            }
+        }
+    }
+
+
+};
 
 template<typename T>
-using Layer = std::array<std::array<T, HEIGHT>, WIDTH>;
-template<typename T>
-struct Model{
-    std::array<Layer<T>, CLASSES> weight{};
-    std::array<T, CLASSES> bias{};
+struct Model {
+    Linear<float, 26, IMAGE_HEIGHT, IMAGE_WIDTH> linear_1;
+
+    void train(){
+
+    }
+
+    void test(){
+
+    }
 };
 
 
 
-std::array<float, CLASSES> forward(Layer<uint8_t> const &input, Model<float> const &model){
-    std::array<float, CLASSES> res = {};
-
-    for (int cls = 0; cls < CLASSES; ++cls) {
-        res[cls] += model.bias[cls];
-        for(int x = 0; x < WIDTH; ++x){
-            for(int y = 0; y < HEIGHT; ++y){
-                res[cls] += input[x][y] * (model.weight[cls][x][y] / 255.0f);
-            }
-        }
-    }
-    return res;
-}
 
 
-using Data = std::vector<Layer<uint8_t>>;
-
-
-void print_layer(Layer<uint8_t> const &layer){
-    for(int x = 0; x < WIDTH; ++x){
-        for(int y = 0;y < HEIGHT; ++y){
-            int value = layer[x][y];
+template<size_t H, size_t W>
+void print_matrix(Matrix<uint8_t, H, W> const &matrix){
+    for(int x = 0; x < W; ++x){
+        for(int y = 0;y < H; ++y){
+            int value = matrix[x][y];
             std::cout << "\033[48;2;" << value << ";" << value << ";" << value << "m  ";
         }
         std::cout << "\033[0m\n";
-    }
-}
-
-void print_model(Model<float> const &model){
-    for(int cls = 0; cls < CLASSES; ++cls){
-        float max = std::numeric_limits<float>::lowest();
-        float min = std::numeric_limits<float>::max();
-
-        for(int x = 0; x < WIDTH; ++x){
-            for(int y = 0;y < HEIGHT; ++y){
-                if(model.weight[cls][x][y] > max) max = model.weight[cls][x][y];
-                if(model.weight[cls][x][y] < min) min = model.weight[cls][x][y];
-            }
-        }
-
-        for(int x = 0; x < WIDTH; ++x){
-            for(int y = 0;y < HEIGHT; ++y){
-                float t = (model.weight[cls][x][y] - min) / (max - min);
-                int value = static_cast<int>(t * 255.0f);
-                
-                std::cout << "\033[48;2;" << value << ";" << value << ";" << value << "m  ";
-            }
-            std::cout << "\033[0m\n";
-        }
     }
 }
 
@@ -90,22 +136,21 @@ void load_image_data(Data &data, std::filesystem::path path, int dataCount){
         // std::cout << details[i] << "\n";
     }
 
-    assert(details[2] == HEIGHT && "rows not equal to HEIGHT");
-    assert(details[3] == WIDTH && "cols not equal to WIDTH");
+    assert(details[2] == IMAGE_HEIGHT && "rows not equal to IMAGE_HEIGHT");
+    assert(details[3] == IMAGE_WIDTH && "cols not equal to IMAGE_WIDTH");
 
     assert(details[1] >= dataCount && "Data Count less than dataCount");
 
     std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();
 
     data.resize(dataCount);
-    file.read(reinterpret_cast<char*>(data.data()), data.size() * WIDTH * HEIGHT);
-    for(Layer<uint8_t> &layer : data){
-        for(int x = 0; x < WIDTH; ++x){
-            for(int y = x + 1; y < HEIGHT; ++y){
+    file.read(reinterpret_cast<char*>(data.data()), data.size() * IMAGE_WIDTH * IMAGE_HEIGHT);
+    for(Matrix<uint8_t, IMAGE_HEIGHT, IMAGE_WIDTH> &layer : data){
+        for(int x = 0; x < IMAGE_WIDTH; ++x){
+            for(int y = x + 1; y < IMAGE_HEIGHT; ++y){
                 std::swap(layer[x][y], layer[y][x]);
             }
         }
-        // print_layer(layer);
     }
 
     std::chrono::time_point<std::chrono::high_resolution_clock> end = std::chrono::high_resolution_clock::now();
@@ -120,11 +165,10 @@ void load_label_data(std::vector<uint8_t> &data, std::filesystem::path path, int
 
     assert(file && "Failed to open training data file");
 
-    uint32_t details[2]; // Magic Number, Data Count, rows, cols
+    uint32_t details[2]; // Magic Number, Data Count
     for(int i = 0; i < 2; ++i){
         file.read(reinterpret_cast<char*>(&details[i]), 4);
         details[i] = std::byteswap(details[i]);
-        // std::cout << details[i] << "\n";
     }
 
     assert(details[1] >= dataCount && "Data Count less than dataCount");
@@ -133,7 +177,6 @@ void load_label_data(std::vector<uint8_t> &data, std::filesystem::path path, int
 
     data.resize(dataCount);
     file.read(reinterpret_cast<char*>(data.data()), data.size());
-    // std::cout << static_cast<char>(data.back() + 'a' - 1) << ' ';
 
     std::chrono::time_point<std::chrono::high_resolution_clock> end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
@@ -142,82 +185,11 @@ void load_label_data(std::vector<uint8_t> &data, std::filesystem::path path, int
     std::cout << "Time taken: " << duration.count() << " seconds\n";
 }
 
-void apply_patch(Layer<float> &weight, float &bias, Layer<uint8_t> const &data, bool negative){
-    negative ? bias -= 1: bias += 1;
 
-    for(int x = 0; x < WIDTH; ++x){
-        for(int y = 0; y < HEIGHT; ++y){
-            float patch = data[x][y] / 255.0f;
-            if(negative) patch *= -1;
-            weight[x][y] += patch;
-            
 
-        }
-    }
-}
 
-Model<float> train(Data const &trainingData, std::vector<uint8_t> const &trainingLable, Model<float> &model){
-    Model<float> averageModel = {};
-    assert(trainingData.size() >= SAMPLE_SIZE && "Training data less than SAMPLE_SIZE");
-    assert(trainingLable.size() >= SAMPLE_SIZE && "Training lable less than SAMPLE_SIZE");
 
-    std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();
 
-    for(int trainingRound = 0; trainingRound < SAMPLE_SIZE; ++trainingRound) {
-        std::array<float, CLASSES> res = forward(trainingData[trainingRound], model);
-        auto it = std::max_element(res.begin(), res.end());
-        std::size_t index = std::distance(res.begin(), it);
-        if(index + 1 == trainingLable[trainingRound]){
-            // std::cout << "expected: " << static_cast<char>(trainingLable[trainingRound]+ 'a' - 1) << " get: " << static_cast<char>(index + 'a') << '\n';
-        }else{
-            // std::cout << "expected: " << static_cast<char>(trainingLable[trainingRound]+ 'a' - 1) << " bug get: " << static_cast<char>(index + 'a') << '\n';
-            apply_patch(model.weight[index], model.bias[index], trainingData[trainingRound] ,true);
-            apply_patch(model.weight[trainingLable[trainingRound] - 1], model.bias[trainingLable[trainingRound] - 1], trainingData[trainingRound] ,false);
-
-        }
-    
-         for(int cls = 0; cls < CLASSES; ++cls){
-            for(int x = 0; x < WIDTH; ++x){
-                for(int y = 0; y < HEIGHT; ++y){
-                    averageModel.weight[cls][x][y] += (model.weight[cls][x][y] - averageModel.weight[cls][x][y]) / (trainingRound + 1);
-                }
-            }
-         }
-    }
-    std::chrono::time_point<std::chrono::high_resolution_clock> end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-
-    std::cout << "Success train " << SAMPLE_SIZE << " rounds\n";
-    std::cout << "Time taken: " << duration.count() << " seconds\n";
-    
-    return averageModel;
-}
-
-void test(Data const &testingData, std::vector<uint8_t> const &testingLable, Model<float> const &model, int testRound){
-    assert(testingData.size() >= testRound && "Testing data less than testRound");
-    assert(testingLable.size() >= testRound && "Testing lable less than testRound");
-
-    int errCount = 0;
-
-    std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();
-    for(int testingRound = 0; testingRound < testRound; ++testingRound){
-        std::array<float, CLASSES> res = forward(testingData[testingRound], model);
-        auto it = std::max_element(res.begin(), res.end());
-        std::size_t index = std::distance(res.begin(), it);
-        if(index + 1 == testingLable[testingRound]){
-        }else{
-            errCount++;
-        }
-    }
-    std::chrono::time_point<std::chrono::high_resolution_clock> end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    
-
-    std::cout << "Success test " << testRound << " rounds\n";
-    std::cout << "Correct: " << testRound - errCount << " Error:" << errCount << " \n";
-    std::cout << "Correct rate: " << static_cast<float>((testRound - errCount) / (testRound * 1.0f)) << '\n';
-    std::cout << "Time taken: " << duration.count() << " seconds\n";
-}
 
 int main() {
 
