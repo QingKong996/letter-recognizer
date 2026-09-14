@@ -25,9 +25,9 @@ struct Matrix {
 
     template<typename Func>
     void apply_func_to_elements(Func func){
-        for(int row = 0; row < Rows; ++row){
-            for(int col = 0; col < Cols; ++col){
-                data(row, col) = func(data(row, col));
+        for(size_t row = 0; row < Rows; ++row){
+            for(size_t col = 0; col < Cols; ++col){
+                (*this)(row, col) = func((*this)(row, col));
             }
         }
     }
@@ -38,11 +38,20 @@ struct Matrix {
         return data[row * Cols + col];
     }
 
-    constexpr Matrix<T, Rows, Cols> operator+(Matrix<T, Rows, Cols> matrix){
+    constexpr Matrix<T, Rows, Cols> operator+(const Matrix<T, Rows, Cols>& matrix) const {
         Matrix<T, Rows, Cols> res {};
-        for(int row = 0; row < Rows; ++row){
-            for(int col = 0; col < Cols; ++col){
+        for(size_t row = 0; row < Rows; ++row){
+            for(size_t col = 0; col < Cols; ++col){
                 res(row, col) = (*this)(row, col) + matrix(row, col);
+            }
+        }
+        return res;
+    }
+    constexpr Matrix<T, Rows, Cols> operator-(const Matrix<T, Rows, Cols>& matrix) const {
+        Matrix<T, Rows, Cols> res {};
+        for(size_t row = 0; row < Rows; ++row){
+            for(size_t col = 0; col < Cols; ++col){
+                res(row, col) = (*this)(row, col) - matrix(row, col);
             }
         }
         return res;
@@ -53,15 +62,53 @@ struct Matrix {
 
         Matrix<T, Rows, OtherCols> res {};
 
-        for(int row = 0; row < Rows; ++row){
-            for(int col = 0; col < OtherCols; ++col){
-                for(int i = 0; i < Cols; ++i){
+        for(size_t row = 0; row < Rows; ++row){
+            for(size_t col = 0; col < OtherCols; ++col){
+                for(size_t i = 0; i < Cols; ++i){
                     res(row, col) += (*this)(row, i) * matrix(i, col);
                 }
             }
         }
         return res;
     }
+
+    template<typename Scalar>
+    constexpr Matrix<T, Rows, Cols> operator*(Scalar scalar){
+        for(size_t row = 0; row < Rows; ++row){
+            for(size_t col = 0; col < Cols; ++col){
+                (*this)(col, row) *= scalar;
+            }
+        }
+    }
+    template<typename Scalar>
+    constexpr Matrix<T, Rows, Cols> operator/(Scalar scalar){
+        for(size_t row = 0; row < Rows; ++row){
+            for(size_t col = 0; col < Cols; ++col){
+                (*this)(col, row) /= scalar;
+            }
+        }
+    }
+
+    constexpr Matrix<T, Cols, Rows> transpose() const {
+        Matrix<T, Cols, Rows> res;
+        for(size_t row = 0; row < Rows; ++row){
+            for(size_t col = 0; col < Cols; ++col){
+                res(col, row) = (*this)(row, col);
+            }
+        }
+        return res;
+    }
+
+    constexpr Matrix<T, Cols, Rows> hadamard(Matrix<T, Cols, Rows> matrix) const {
+        Matrix<T, Cols, Rows> res;
+        for(size_t row = 0; row < Rows; ++row){
+            for(size_t col = 0; col < Cols; ++col){
+                res(row, col) = (*this)(row, col) * matrix(row, col);
+            }
+        }
+        return res;
+    }
+
 
 };
 
@@ -76,33 +123,27 @@ struct Linear {
     Matrix<T, 1, Output_size> forward(Matrix<uint8_t, 1, Input_size> const& input){
         return input * weight + bias;
     }
-
-
     void print(){
-        for(int cls = 0; cls < CLASSES; ++cls){
-            float max = std::numeric_limits<float>::lowest();
-            float min = std::numeric_limits<float>::max();
+        float max = std::numeric_limits<float>::lowest();
+        float min = std::numeric_limits<float>::max();
 
-            for(int row = 0; row < Input_size; ++row){
-                for(int col = 0; col < Output_size; ++col){
-                    if(weight(row, col) > max) max = weight(row, col);
-                    if(weight(row, col) < min) min = weight(row, col);
-                }
-            }
-
-
-            for(int row = 0; row < Input_size; ++row){
-                for(int col = 0; col < Output_size; ++col){
-                    float t = (weight(row, col) - min) / (max - min);
-                    int value = static_cast<int>(t * 255.0f);
-                    std::cout << "\033[48;2;" << value << ";" << value << ";" << value << "m  ";
-                }
-                std::cout << "\033[0m\n";
+        for(int row = 0; row < Input_size; ++row){
+            for(int col = 0; col < Output_size; ++col){
+                if(weight(row, col) > max) max = weight(row, col);
+                if(weight(row, col) < min) min = weight(row, col);
             }
         }
+
+
+        for(int row = 0; row < Input_size; ++row){
+            for(int col = 0; col < Output_size; ++col){
+                float t = (weight(row, col) - min) / (max - min);
+                int value = static_cast<int>(t * 255.0f);
+                std::cout << "\033[48;2;" << value << ";" << value << ";" << value << "m  ";
+            }
+            std::cout << "\033[0m\n";
+        }
     }
-
-
 };
 
 
